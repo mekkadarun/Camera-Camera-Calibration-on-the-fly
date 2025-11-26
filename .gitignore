@@ -1,0 +1,10 @@
+# Ignore the heavy dataset folder
+data/
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+
+# Ignore IDE settings (optional)
+.vscode/
+.idea/
