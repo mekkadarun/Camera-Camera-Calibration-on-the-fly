@@ -1,67 +1,64 @@
-# Camera-Camera Calibration on-the-fly
+# Visual Spatio-Temporal Synchronizer
 
-**Synchronize multi-camera systems on autonomous vehicles using trajectory analysis.**
+A tool for synchronizing camera streams in autonomous driving datasets (nuScenes) using Structure-from-Motion and Deep Learning-based dynamic object masking.
 
-This project implements a software-based synchronization solution that detects and corrects time offsets between cameras without relying on hardware triggers. It uses computer vision (ORB SLAM) and vehicle trajectory data to minimize geometric reprojection errors.
+## Features
 
----
+- **Spatio-Temporal Synchronization**: Recovers time delays between cameras.
+- **Dynamic Object Filtering**: Uses DeepLabV3 to mask out moving objects (cars, pedestrians).
+- **Visual Validation**: Generates side-by-side comparison snapshots to verify synchronization.
 
-## 1. Project Overview
+## Installation
 
-*   **Goal**: Synchronize a "Target Camera" (e.g., `CAM_FRONT_LEFT`) to a trusted "Reference Camera" (e.g., `CAM_FRONT`).
-*   **Method**: Build a sparse 3D map from the reference camera, project landmarks into the target camera, and optimize the timestamp until alignment is perfect.
-*   **Key Capabilities**:
-    *   **Sub-millisecond accuracy**: Precise time offset recovery.
-    *   **Non-overlapping FOV**: Uses vehicle motion to bridge gaps between cameras.
-    *   **Validated**: Tested on the nuScenes dataset.
+1. **Clone and Install**:
+   ```bash
+   git clone <repository_url>
+   cd CameraCalibAFR
+   pip install -r requirements.txt
+   ```
 
-## 2. Architecture
+2. **Data Setup**:
+   - Place nuScenes dataset (v1.0-trainval or v1.0-mini) in `data/`.
 
-The system follows a linear **Map-Then-Sync** pipeline:
+## Usage
 
-1.  **Ingest**: Load raw vehicle trajectory and image data.
-2.  **Map**: Use `CAM_FRONT` to build a 3D structure of the world (landmarks) using ORB features.
-3.  **Match**: Project 3D landmarks into the `CAM_FRONT_LEFT` view.
-4.  **Optimize**: Slide the timestamp of the target camera until the 3D points align with the image.
-
-## 3. File Structure
-
-### Core Modules (`src/`)
-
-*   **`data_loader.py`**: Interface for the nuScenes dataset. Provides continuous trajectory interpolation (`pose = f(t)`) and static extrinsics.
-*   **`map_maker.py`**: The "Monocular SLAM" front-end. Detects ORB features in the reference camera and triangulates them into 3D points.
-*   **`matcher.py`**: Projects 3D world points into the target camera. Allows simulating time delays via a `time_offset` parameter.
-*   **`optimizer.py`**: The mathematical solver. Minimizes pixel reprojection error to find the optimal time offset.
-
-### Scripts
-
-*   **`run_sync.py`**: Main executable. Loads data, builds the map, injects a simulated delay, and runs the optimizer to recover it.
-*   **`src/test/validate_sync.py`**: Validation script. Sweeps the time offset from -100ms to +100ms to generate a "Cost Landscape" (V-Curve), proving the solution's robustness.
-
-## 4. Getting Started
-
-### Installation
-
-1.  **Install Dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-2.  **Download Data**:
-    Ensure you have the nuScenes dataset installed. This project expects the data to be organized as follows:
-    *   `data/v1.0-trainval`
-    *   `data/samples`
-
-### Running the Synchronization Tool
+### 1. Run Synchronization
+Runs the synchronization experiment with an injected delay and generates comparison snapshots.
 
 ```bash
-python run_sync.py
+python3 run_sync.py
 ```
-*Output: Reports the injected delay and the recovered offset.*
 
-### Running Validation
+**Output**:
+- Console: Injected error, recovered offset, and residual error.
+- `results/`: Three comparison snapshots (Frame 15).
+    1. `1_desync_nomask.jpg`: Desynchronized, features on dynamic objects.
+    2. `2_desync_masked.jpg`: Desynchronized, dynamic objects masked.
+    3. `3_synchronized.jpg`: Synchronized (recovered), dynamic objects masked.
+
+### 2. Generate Video Demo
+Visualizes the dynamic object filtering process across a sequence.
 
 ```bash
-python src/test/validate_sync.py
+python3 generate_masked_video.py
 ```
-*Output: Displays the optimization cost landscape graph.*
+*Output: `masked_features_demo.mp4`*
+
+## Project Structure
+
+```
+.
+├── data/                   # Dataset directory
+├── results/                # Output comparison snapshots
+├── src/
+│   ├── data_loader.py      # Data loading and interpolation
+│   ├── map_maker.py        # 3D map building
+│   ├── masker.py           # Dynamic object masking (DeepLabV3)
+│   ├── matcher.py          # Point projection
+│   ├── optimizer.py        # Time offset optimization
+│   ├── visualizer.py       # Visualization tools
+│   └── test/               # Unit tests
+├── run_sync.py             # Main synchronization script
+├── generate_masked_video.py# Video generation script
+└── requirements.txt        # Dependencies
+```

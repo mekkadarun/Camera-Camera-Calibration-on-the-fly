@@ -39,7 +39,7 @@ class Matcher:
             projected_pixels: (N, 2) coordinates
             valid_mask: Boolean array of points that are actually in front of the camera
         """
-        # 1. Get the Nominal Timestamp of the frame
+        # Get the Nominal Timestamp of the frame
         sample_token = self.scene['first_sample_token']
         samples = []
         curr = sample_token
@@ -62,7 +62,7 @@ class Matcher:
         get_pose, _ = self.loader.get_trajectory_interpolator(self.scene)
         T_wb = get_pose(query_time) # World -> Body at shifted time
         
-        # 2. Compute World -> Camera Transform
+        # Compute World -> Camera Transform
         # T_wc = T_wb * T_bc
         T_wc = T_wb @ self.T_bc
         
@@ -73,7 +73,7 @@ class Matcher:
         R_cw = R_wc.T
         t_cw = -R_cw @ t_wc
         
-        # 3. Project Points
+        # Project Points
         # P_cam = R_cw * P_world + t_cw
         points_cam = (R_cw @ points_3d.T).T + t_cw
         

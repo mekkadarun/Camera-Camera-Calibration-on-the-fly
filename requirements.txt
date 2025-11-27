@@ -3,3 +3,6 @@ opencv-python
 scipy
 matplotlib
 nuscenes-devkit
+torch
+torchvision
+tqdm

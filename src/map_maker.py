@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import os
+from masker import DynamicMasker
 
 class MapMaker:
     def __init__(self, loader, scene, ref_camera_name='CAM_FRONT_LEFT'):
@@ -20,6 +21,9 @@ class MapMaker:
         t_bc = self.T_bc[:3, 3]
         self.R_cb = R_bc.T
         self.t_cb = -self.R_cb @ t_bc
+        
+        # Initialize Masker
+        self.masker = DynamicMasker()
 
     def _get_intrinsics(self, camera_name):
         """Fetch Camera Calibration Matrix (K)."""
@@ -55,7 +59,7 @@ class MapMaker:
 
     def build_local_map(self, frame_idx_1=0, frame_idx_2=4):
         """Creates 3D points using two frames."""
-        # 1. Get Tokens
+        # Get Tokens
         sample_token = self.scene['first_sample_token']
         samples = []
         curr = sample_token
@@ -64,17 +68,22 @@ class MapMaker:
             curr = self.nusc.get('sample', curr)['next']
             if len(samples) > frame_idx_2: break
         
-        # 2. Load Data
+        # Load Data
         print(f"[MapMaker] Loading Frame {frame_idx_1} and Frame {frame_idx_2}...")
         img1, T_wb1 = self.get_image_and_pose(samples[frame_idx_1])
         img2, T_wb2 = self.get_image_and_pose(samples[frame_idx_2])
+        
+        # Generate Masks (Dynamic Object Filtering)
+        print("[MapMaker] Generating Semantic Masks...")
+        mask1 = self.masker.get_static_mask(img1)
+        mask2 = self.masker.get_static_mask(img2)
 
-        # 3. Detect Features (ORB)
+        # Detect Features (ORB) with Mask
         orb = cv2.ORB_create(nfeatures=20000, fastThreshold=0)
-        kp1, des1 = orb.detectAndCompute(img1, None)
-        kp2, des2 = orb.detectAndCompute(img2, None)
+        kp1, des1 = orb.detectAndCompute(img1, mask=mask1)
+        kp2, des2 = orb.detectAndCompute(img2, mask=mask2)
 
-        # 4. Match Features
+        # Match Features
         bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
         matches = bf.match(des1, des2)
         matches = sorted(matches, key=lambda x: x.distance)
@@ -83,11 +92,11 @@ class MapMaker:
         pts1 = np.float32([kp1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
         pts2 = np.float32([kp2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
 
-        # 5. Projection Matrices
+        # Projection Matrices
         P1 = self._get_projection_matrix(T_wb1)
         P2 = self._get_projection_matrix(T_wb2)
 
-        # 6. Triangulate
+        # Triangulate
         pts4d = cv2.triangulatePoints(P1, P2, pts1, pts2)
         pts3d = pts4d[:3] / pts4d[3] 
 

@@ -54,15 +54,15 @@ class TrajectoryLoader:
 
     def get_trajectory_interpolator(self, scene):
         """Returns a function get_pose(t) based ONLY on Camera timestamps."""
-        # 1. Determine time boundaries
+        # Determine time boundaries
         first_sample = self.nusc.get('sample', scene['first_sample_token'])
         last_sample = self.nusc.get('sample', scene['last_sample_token'])
         
-        # We use CAM_FRONT as the reference timeline
+        # Use CAM_FRONT as the reference timeline
         t_start_us = self.nusc.get('sample_data', first_sample['data']['CAM_FRONT'])['timestamp']
         t_end_us = self.nusc.get('sample_data', last_sample['data']['CAM_FRONT'])['timestamp']
         
-        # 2. Collect ego_poses traversing the CAM_FRONT linked list
+        # Collect ego_poses traversing the CAM_FRONT linked list
         timestamps = []
         positions = []
         quaternions = [] 
@@ -89,7 +89,7 @@ class TrajectoryLoader:
         pos = np.array(positions)
         quats = np.array(quaternions)
 
-        # 3. Setup Interpolators
+        # Setup Interpolators
         pos_interp = interp1d(times, pos, axis=0, kind='linear', fill_value="extrapolate")
         
         quats_scipy = quats[:, [1, 2, 3, 0]] 
