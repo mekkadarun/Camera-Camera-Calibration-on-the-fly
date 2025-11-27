@@ -1,4 +1,3 @@
-# FILE: src/data_loader.py
 import os
 import sys
 import numpy as np

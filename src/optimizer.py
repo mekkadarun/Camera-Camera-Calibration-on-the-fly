@@ -1,4 +1,3 @@
-# FILE: src/optimizer.py
 import numpy as np
 from scipy.optimize import minimize_scalar
 

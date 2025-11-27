@@ -1,120 +1,67 @@
 # Camera-Camera Calibration on-the-fly
 
+**Synchronize multi-camera systems on autonomous vehicles using trajectory analysis.**
+
+This project implements a software-based synchronization solution that detects and corrects time offsets between cameras without relying on hardware triggers. It uses computer vision (ORB SLAM) and vehicle trajectory data to minimize geometric reprojection errors.
+
+---
+
 ## 1. Project Overview
 
-This project implements a solution to synchronize multi-camera systems on autonomous vehicles. Instead of relying on hardware triggers, it uses computer vision and trajectory analysis to detect time offsets.
+*   **Goal**: Synchronize a "Target Camera" (e.g., `CAM_FRONT_LEFT`) to a trusted "Reference Camera" (e.g., `CAM_FRONT`).
+*   **Method**: Build a sparse 3D map from the reference camera, project landmarks into the target camera, and optimize the timestamp until alignment is perfect.
+*   **Key Capabilities**:
+    *   **Sub-millisecond accuracy**: Precise time offset recovery.
+    *   **Non-overlapping FOV**: Uses vehicle motion to bridge gaps between cameras.
+    *   **Validated**: Tested on the nuScenes dataset.
 
-It works by building a sparse 3D map using a trusted "Reference Camera" and then optimizing the timestamp of a "Target Camera" until the geometric reprojection error is minimized.
+## 2. Architecture
 
-### Key capabilities:
+The system follows a linear **Map-Then-Sync** pipeline:
 
-Sub-millisecond synchronization accuracy.
+1.  **Ingest**: Load raw vehicle trajectory and image data.
+2.  **Map**: Use `CAM_FRONT` to build a 3D structure of the world (landmarks) using ORB features.
+3.  **Match**: Project 3D landmarks into the `CAM_FRONT_LEFT` view.
+4.  **Optimize**: Slide the timestamp of the target camera until the 3D points align with the image.
 
-Works with non-overlapping fields of view (using vehicle motion to bridge the gap).
+## 3. File Structure
 
-Validated using the nuScenes dataset.
+### Core Modules (`src/`)
 
-## 2. Functional Architecture
+*   **`data_loader.py`**: Interface for the nuScenes dataset. Provides continuous trajectory interpolation (`pose = f(t)`) and static extrinsics.
+*   **`map_maker.py`**: The "Monocular SLAM" front-end. Detects ORB features in the reference camera and triangulates them into 3D points.
+*   **`matcher.py`**: Projects 3D world points into the target camera. Allows simulating time delays via a `time_offset` parameter.
+*   **`optimizer.py`**: The mathematical solver. Minimizes pixel reprojection error to find the optimal time offset.
 
-The system follows a linear "Map-Then-Sync" pipeline:
+### Scripts
 
-*Ingest*: Load raw vehicle trajectory and image data.
+*   **`run_sync.py`**: Main executable. Loads data, builds the map, injects a simulated delay, and runs the optimizer to recover it.
+*   **`src/test/validate_sync.py`**: Validation script. Sweeps the time offset from -100ms to +100ms to generate a "Cost Landscape" (V-Curve), proving the solution's robustness.
 
-*Map*: Use the trusted CAM_FRONT to build a 3D structure of the world (landmarks).
+## 4. Getting Started
 
-*Match*: Project those 3D landmarks into the CAM_FRONT_LEFT view.
+### Installation
 
-*Optimize*: Slide the timestamp of the side camera forward/backward until the 3D points line up perfectly with the image.
+1.  **Install Dependencies**:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-## 3. File Structure & Script Descriptions
+2.  **Download Data**:
+    Ensure you have the nuScenes dataset installed. This project expects the data to be organized as follows:
+    *   `data/v1.0-trainval`
+    *   `data/samples`
 
-`data_loader.py` (The Interface)
+### Running the Synchronization Tool
 
-Role: Hides the complexity of the nuScenes dataset.
-
-Key Function: `get_trajectory_interpolator`(scene). It returns a continuous function pose = f(t) that allows us to query the car's position at any microsecond, not just when images were taken.
-
-Calibration: Also handles retrieving the static extrinsic transforms ($T_{body \to camera}$).
-
-`map_maker.py` (The Reference)
-
-Role: Acts as a "Monocular SLAM" front-end.
-
-Key Logic: It takes pairs of images from the Reference Camera (CAM_FRONT), finds ORB feature matches, and triangulates them into 3D points.
-
-Critical Detail: It forces a high feature count (nfeatures=20000) to ensure points are detected at the edges of the frame, which is the only place the side camera can see.
-
-`matcher.py` (The Bridge)
-
-Role: Connects the 3D world to the 2D Target Camera.
-
-Key Function: `project_points(points_3d, time_offset)`.
-
-This function accepts a time_offset. If you set offset=0.1s, it calculates where the car would be 100ms later and projects the points based on that future pose. This is how we simulate and solve for delays.
-
-`optimizer.py` (The Solver)
-
-Role: The mathematical brain.
-
-Logic: It defines a Cost Function (Average Pixel Error) and uses scipy.optimize to slide the time_offset variable until the error is minimized.
-
-B. The Application
-
-`run_sync.py` (Main Executable)
-
-Role: The master script that ties everything together.
-
-Workflow:
-
-Loads Data.
-
-Builds the Map.
-
-Corruption Step: Injects a fake 50ms delay into the Matcher.
-
-Runs the Optimizer to recover that delay.
-
-Reports the final recovered offset (e.g., Recovered: 50.0009ms).
-
-## 4. Validation & Tests (src/test/)
-
-Use these to verify each component works in isolation.
-
-`test_data_loader.py`
-
-What it tests: Can we read the dataset? Is the trajectory smooth?
-
-Success looks like: A plot showing a smooth vehicle path and a calculated speed of ~5-15 m/s.
-
-`test_map_maker.py`
-
-What it tests: Can we generate 3D points?
-
-Success looks like: An image showing red dots tracked on trees/signs, and a scatter plot showing a cluster of points.
-
-`validate_sync.py` (The "Cost Landscape" Test)
-
-What it tests: Is the synchronization problem mathematically solvable?
-
-How it works: It manually sweeps the time offset from -100ms to +100ms and plots the error.
-
-Success looks like: A sharp "V-Shape" graph with the minimum exactly at 0ms. This graph proves your algorithm is robust and precise.
-
-## 5. How to Run the Pipeline
-
-***Step 1***: Verify Prerequisites
-
-Ensure your data is in CAMERACALIBAFR/data/v1.0-trainval and CAMERACALIBAFR/data/samples.
-
-***Step 2***: Run the Main Sync Tool
 ```bash
 python run_sync.py
 ```
-***Step 3***: Generate the Engineering Proof
+*Output: Reports the injected delay and the recovered offset.*
+
+### Running Validation
 
 ```bash
 python src/test/validate_sync.py
 ```
-
-### Expected Output:
-A window will pop up showing the "Optimization Cost Landscape" graph (the V-Curve). This image is the primary proof of performance for reports.
+*Output: Displays the optimization cost landscape graph.*

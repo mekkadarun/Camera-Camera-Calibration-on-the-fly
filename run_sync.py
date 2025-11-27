@@ -1,4 +1,3 @@
-# FILE: run_sync.py
 import sys
 import os
 import numpy as np
@@ -49,7 +48,7 @@ def main():
     
     if len(optimizer.observed_pixels) == 0:
         print("\nCRITICAL FAILURE: No overlap found between cameras.")
-        print("FIX: Open src/map_maker.py and increase matches[:200] to matches[:5000]")
+        print("FIX: Open src/map_maker.py and check feature matching parameters.")
         return
 
     # THE TRICK: We shift the "Ground Truth Observation" by the injected error.
